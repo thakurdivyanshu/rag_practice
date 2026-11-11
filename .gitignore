@@ -1,0 +1,5 @@
+.env
+*.faiss
+*.pkl
+/faiss_index
+/.venv
