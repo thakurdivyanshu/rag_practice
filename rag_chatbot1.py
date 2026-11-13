@@ -77,6 +77,28 @@ prompt = ChatPromptTemplate.from_messages([
     ("user","{question}")
 ])
 
+
+contextual_question_prompt = """
+You are a question rewriting component in a RAG pipeline.
+
+Your ONLY task is to rewrite the latest user question.Donot try to answer the question.
+
+Instructions:
+- Use chat history only to resolve missing references such as "it", "they", "this".
+- If the question is already understandable independently, return it unchanged.
+- Never answer the question.
+- Never explain anything.
+- Never add examples or headings.
+
+Output exactly one standalone question and nothing else.
+"""
+
+
+contextual_question_prompt_to_llm = ChatPromptTemplate.from_messages([
+    ("system","contextual_question_prompt"),
+    MessagesPlaceholder(variable_name="chat_history"),
+    ("user","{question}")
+])
 while True:
         
     question = input("\n User: ")
@@ -84,7 +106,26 @@ while True:
         print("Chatbot: Goodbye!!")
         break
 
-    retrieved_docs=retriever.invoke(question)
+    # Rewrite the question using chat history
+    contextual_prompt = contextual_question_prompt_to_llm.invoke({
+        "chat_history": chat_history,
+        "question": question
+    })
+    from langchain_groq import ChatGroq
+    # Initialize Groq LLM
+    llm = ChatGroq(
+            model="openai/gpt-oss-20b",
+            temperature=0.3
+        )
+    
+    # Generate standalone question
+    rewrite_response=llm.invoke(contextual_prompt)
+    print("\n\n ********* \n\n Complete response from llm :", rewrite_response)
+    
+    print("\n\n ********* \n\n Rewritten question:", repr(rewrite_response.content))
+    question_with_context = rewrite_response.content.strip()
+    # Retrieve documents using the rewritten question
+    retrieved_docs = retriever.invoke(question_with_context)
 
     #assign unqiue id to each retieved doc
     for i,doc in enumerate(retrieved_docs):
@@ -94,8 +135,7 @@ while True:
                            for doc in retrieved_docs 
                            if "page" in doc.metadata})
 
-    #now LLM comes into picture 
-    from langchain_groq import ChatGroq
+
 
     #enrich content with page number also to give to LLm(will be useful later) 
     context="\n\n".join(f"Document id: { doc.metadata.get('doc_id')+1} \n\n"
@@ -107,11 +147,7 @@ while True:
                                       "chat_history":chat_history
                                       })
 
-    # Initialize Groq LLM
-    llm = ChatGroq(
-        model="openai/gpt-oss-20b",
-        temperature=0.3
-    )
+    
 
     response=llm.invoke(formatted_prompt)
     chat_history.append(HumanMessage(content=question))
