@@ -1,8 +1,11 @@
 from pydoc import doc, text
+from langchain.messages import AIMessage, HumanMessage
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_openai import chatgpt_oauth
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from dotenv import load_dotenv
+
+import chat_hist
 
 load_dotenv()
 
@@ -46,7 +49,7 @@ print("Total vectors stored:", vector_store.index.ntotal)
 retriever = vector_store.as_retriever(search_type="similarity",search_kwargs={"k":3})
 
 
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate,MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
 
 
@@ -56,12 +59,23 @@ You are a helpful assistant answering questions from a research paper .
 Answer using ONLY the context given . If the answer is not available in the context
 say: "I dont know based on the provided document"
 
+After generating the answer, identify the document IDs that directly support your answer.
+
+Return your response in this format:
+
+Answer: <your answer>
+
+Supporting document IDs: [list of IDs that support the answer]
+
 Context: 
 {context}
 """
 
+#creating prompt with chathistory 
+chat_history=[]
 prompt = ChatPromptTemplate.from_messages([
     ("system",system_prompt),
+    MessagesPlaceholder(variable_name="chat_history"),
     ("user","{question}")
 ])
 
@@ -73,6 +87,11 @@ while True:
         break
 
     retrieved_docs=retriever.invoke(question)
+
+    #assign unqiue id to each retieved doc
+    for i,doc in enumerate(retrieved_docs):
+        doc.metadata["doc_id"]=i
+
     source_pages = sorted({doc.metadata["page"] + 1 
                            for doc in retrieved_docs 
                            if "page" in doc.metadata})
@@ -81,12 +100,14 @@ while True:
     from langchain_groq import ChatGroq
 
     #enrich content with page number also to give to LLm(will be useful later) 
-    context="\n\n".join(f"Page number: { doc.metadata.get('page',0)+1} \n\n"
+    context="\n\n".join(f"Document id: { doc.metadata.get('doc_id')+1} \n\n"
                         f"Context: {doc.page_content}"
                         for doc in retrieved_docs
                         )
     formatted_prompt = prompt.invoke({"context":context,
-                                      "question":question})
+                                      "question":question,
+                                      "chat_history":chat_history
+                                      })
 
     # Initialize Groq LLM
     llm = ChatGroq(
@@ -95,5 +116,8 @@ while True:
     )
 
     response=llm.invoke(formatted_prompt)
+    chat_history.append(HumanMessage(content=question))
+    chat_history.append(AIMessage(content=response.content))
     print("\n Chatbot:",response.content)
     print("\n Retrieved Source Pages: ", source_pages)
+
