@@ -5,8 +5,6 @@ from langchain_openai import chatgpt_oauth
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from dotenv import load_dotenv
 
-import chat_hist
-
 load_dotenv()
 
 #load the pdf 
