@@ -3,3 +3,4 @@
 *.pkl
 /faiss_index
 /.venv
+faiss_index*
