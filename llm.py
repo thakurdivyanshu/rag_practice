@@ -27,7 +27,8 @@ def generate(prompt: str, temperature: float = 0.0) -> str | None:
     return resp.choices[0].message.content
 
 def generate_structured(
-    prompt: str,
+    user_prompt: str,
+    system_prompt: str,
     schema: dict,
     schema_name: str = "research_answer",
     temperature: float = 0.0
@@ -35,7 +36,10 @@ def generate_structured(
 
     resp = _client.chat.completions.create(
         model=MODEL,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+            ],
         temperature=temperature,
         response_format={
             "type": "json_schema",
