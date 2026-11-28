@@ -3,7 +3,11 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 
+from evaluation.faithfulness import evaluate_faithfulness
 from llm import generate_structured
+from schemas.structured_output_format import ResearchAnswer
+
+ 
 
 
 # -------------------------------------------------------------------
@@ -18,13 +22,6 @@ REFUSAL_THRESHOLD = 1.5
 # -------------------------------------------------------------------
 # 2. Structured response contract
 # -------------------------------------------------------------------
-
-class ResearchAnswer(BaseModel):
-    model_config = ConfigDict(strict=True, extra="forbid")
-
-    answer: str
-    supported: bool
-    pages: list[int]
 
 
 # -------------------------------------------------------------------
@@ -114,7 +111,7 @@ def build_user_prompt(question: str, context: str) -> str:
     return f"""
     RETRIEVED DOCUMENT CONTENT:
     {context}
-    
+
     USER QUESTION:
     {question}
     """
@@ -124,7 +121,7 @@ def build_user_prompt(question: str, context: str) -> str:
 # 8. Run the RAG pipeline
 # -------------------------------------------------------------------
 
-def answer_question(question: str) -> ResearchAnswer | None:
+def answer_question(question: str):
     print("\nQuestion:", question)
 
     results = retrieve_chunks(question)
@@ -158,8 +155,6 @@ def answer_question(question: str) -> ResearchAnswer | None:
 
     user_prompt = build_user_prompt(question, context)
     system_prompt=build_system_prompt(question,context)
-    print("*"*200)
-    print("\nUser prompt:", user_prompt)
     raw_response = generate_structured(
         user_prompt,
         system_prompt,
@@ -178,6 +173,8 @@ def answer_question(question: str) -> ResearchAnswer | None:
         print(exc)
         return None
 
+    structured_response.answer+="Multi-head attention always uses exactly 8 attention heads"
+    
     print("\nStructured response:")
     print(structured_response)
 
@@ -185,7 +182,13 @@ def answer_question(question: str) -> ResearchAnswer | None:
     print("Supported:", structured_response.supported)
     print("Pages:", structured_response.pages)
 
-    return structured_response
+
+    #rag evaluation step 
+
+    
+    rag_evaluation=evaluate_faithfulness(context,structured_response.answer)
+
+    return structured_response,rag_evaluation
 
 
 # -------------------------------------------------------------------

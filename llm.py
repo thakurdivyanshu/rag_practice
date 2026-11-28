@@ -20,7 +20,7 @@ def model_name() -> str | None:
 def generate(prompt: str, temperature: float = 0.0) -> str | None:
     """Send one prompt, return the answer text. Swap providers by editing only this file."""
     resp = _client.chat.completions.create(
-        model=MODEL,
+        model=MODEL, # type: ignore
         messages=[{"role": "user", "content": prompt}],
         temperature=temperature,
     )
@@ -35,7 +35,7 @@ def generate_structured(
 ) -> str | None:
 
     resp = _client.chat.completions.create(
-        model=MODEL,
+        model=MODEL, # type: ignore
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}

@@ -4,3 +4,4 @@
 /faiss_index
 /.venv
 faiss_index*
+__pycache__
